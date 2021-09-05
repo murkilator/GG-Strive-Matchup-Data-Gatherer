@@ -17,7 +17,7 @@ def CreateExcel():
     # Create formats with different colors for the win rate worksheet
     format_green = workbook.add_format({'num_format': '#,##0.00', 'bg_color' : '#7feb7f'})
     format_light_green = workbook.add_format({'num_format': '#,##0.00', 'bg_color' : '#c3f6c3'})
-    format_neutral = workbook.add_format({'num_format': '#,##0.00', 'bg_color' : '#ffffff'})
+    format_white = workbook.add_format({'num_format': '#,##0.00', 'bg_color' : '#ffffff'})
     format_light_red = workbook.add_format({'num_format': '#,##0.00', 'bg_color' : '#f6c3c3'})
     format_red = workbook.add_format({'num_format': '#,##0.00', 'bg_color' : '#eb7f7f'})
     format_gray = workbook.add_format({'num_format': '#,##0.00', 'bg_color' : '#b4b4b4'})
@@ -38,7 +38,7 @@ def CreateExcel():
             col_character_wins = result_matrix[col_character][row_character]
             total_matches = row_character_wins + col_character_wins
 
-            format = format_neutral
+            format = format_white
             win_rate = "--"
             if total_matches > 0:
                 win_rate = round(row_character_wins / total_matches, 2)
@@ -51,7 +51,7 @@ def CreateExcel():
                     elif (win_rate >= 0.51):
                         format = format_light_green
                     elif (win_rate >= 0.49):
-                        format = format_neutral
+                        format = format_white
                     elif (win_rate >= 0.46):
                         format = format_light_red
                     else:
@@ -75,7 +75,7 @@ MATCH_THRESHOLD = 0.8
 MAX_FAIL_COUNT = 15
 
 # The maximum number of replays to analyze
-MAX_REPLAY_COUNT = 20000
+MAX_REPLAY_COUNT = 100000
 
 # Amount of time to sleep before moving on to the next replay
 SLEEP_TIME = 0.01
@@ -89,8 +89,8 @@ SLEEP_TIME_POSITION_RESET = 15
 
 # The screen positions to grab when looking for player1, player2, and version info.
 # Assumes 2560x1440 resolution
-P1_SCREEN_POSITION =      {'top': 1085, 'left': 810, 'width': 220, 'height': 110}
-P2_SCREEN_POSITION =      {'top': 1085, 'left': 1125, 'width': 220, 'height': 110}
+P1_SCREEN_POSITION      = {'top': 1085, 'left': 810,  'width': 220, 'height': 110}
+P2_SCREEN_POSITION      = {'top': 1085, 'left': 1125, 'width': 220, 'height': 110}
 VERSION_SCREEN_POSITION = {'top': 1090, 'left': 2030, 'width': 160, 'height': 70}
 
 # List of characters. Character names must match the character template filenames
@@ -157,7 +157,7 @@ with mss.mss() as sct:
         p2_im = cv2.cvtColor(p2_im, cv2.COLOR_BGR2GRAY)
 
         # Figure out which character is player1 and which character is player2 by
-        # matching trying to match character templates
+        # matching character templates
         p1_found = False
         p2_found = False
         p1_name = ""
