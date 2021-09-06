@@ -77,10 +77,13 @@ MAX_FAIL_COUNT = 100
 # The maximum number of replays to analyze
 MAX_REPLAY_COUNT = 50
 
-# Amount of time to sleep before moving on to the next replay
-SLEEP_TIME = 0.005
+# Amount of time to sleep before moving on to the next replay. Wait just over
+# 1 frame at 60fps to ensure we don't try to grab the next replay result before
+# the game has had the chance to update the screen
+SLEEP_TIME = 0.017
 
 # Amount of time to sleep after failing to match any template before trying again
+# This generally happens when waiting on the server for the next batch of replays
 SLEEP_TIME_MATCH_FAIL = 0.1
 
 # The screen positions to grab when looking for player1, player2, and version info.
@@ -215,7 +218,7 @@ with mss.mss() as sct:
             fail_count = fail_count + 1
 
             if (fail_count == MAX_FAIL_COUNT):
-                print("Couldn't find player1 and position has already been reset. Aborting")
+                print("Couldn't find player1. Aborting")
                 break
 
             time.sleep(SLEEP_TIME_MATCH_FAIL)
@@ -226,7 +229,7 @@ with mss.mss() as sct:
             fail_count = fail_count + 1
 
             if (fail_count == MAX_FAIL_COUNT):
-                print("Couldn't find player2 and position has already been reset. Aborting")
+                print("Couldn't find player2. Aborting")
                 break
 
             time.sleep(SLEEP_TIME_MATCH_FAIL)
