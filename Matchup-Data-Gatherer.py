@@ -75,7 +75,7 @@ MATCH_THRESHOLD = 0.8
 MAX_FAIL_COUNT = 100
 
 # The maximum number of replays to analyze
-MAX_REPLAY_COUNT = 50
+MAX_REPLAY_COUNT = 100000
 
 # Amount of time to sleep before moving on to the next replay. Wait just over
 # 1 frame at 60fps to ensure we don't try to grab the next replay result before
@@ -235,9 +235,8 @@ with mss.mss() as sct:
             time.sleep(SLEEP_TIME_MATCH_FAIL)
             continue
 
-        # We identified everything successfully; reset the fail count and the position reset bool
+        # We identified everything successfully; reset the fail count
         fail_count = 0
-        position_reset = False
 
         # Increment the appropriate win count within the result matrix
         if p1_win:
