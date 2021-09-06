@@ -46,9 +46,9 @@ def CreateExcel():
                 if col_character == row_character:
                     format = format_gray
                 else:
-                    if (win_rate >= 0.54):
+                    if (win_rate >= 0.55):
                         format = format_green
-                    elif (win_rate >= 0.51):
+                    elif (win_rate >= 0.52):
                         format = format_light_green
                     elif (win_rate >= 0.49):
                         format = format_white
@@ -72,23 +72,20 @@ MATCH_THRESHOLD = 0.8
 
 # The maximum number of times in a row we can fail to identify any component of a
 # replay result before giving up
-MAX_FAIL_COUNT = 15
+MAX_FAIL_COUNT = 100
 
 # The maximum number of replays to analyze
-MAX_REPLAY_COUNT = 100000
+MAX_REPLAY_COUNT = 50
 
 # Amount of time to sleep before moving on to the next replay
-SLEEP_TIME = 0.01
+SLEEP_TIME = 0.005
 
 # Amount of time to sleep after failing to match any template before trying again
 SLEEP_TIME_MATCH_FAIL = 0.1
 
-# Amount of time to sleep after attempting to reset the position. This doesn't
-# happen very often and it can take a while. Make it a long sleep to be safe
-SLEEP_TIME_POSITION_RESET = 15
-
 # The screen positions to grab when looking for player1, player2, and version info.
-# Assumes 2560x1440 resolution
+# The player1 and player2 screen positions contain the character icon and the win
+# or lose text. Assumes 2560x1440 resolution
 P1_SCREEN_POSITION      = {'top': 1085, 'left': 810,  'width': 220, 'height': 110}
 P2_SCREEN_POSITION      = {'top': 1085, 'left': 1125, 'width': 220, 'height': 110}
 VERSION_SCREEN_POSITION = {'top': 1090, 'left': 2030, 'width': 160, 'height': 70}
@@ -128,22 +125,12 @@ wsh.AppActivate("Guilty Gear -Strive-")
 pyautogui.keyDown("n")
 
 # Scroll down so the selected replay is fixed positionally on the screen
-pyautogui.keyDown("s")
-pyautogui.keyUp("s")
-pyautogui.keyDown("s")
-pyautogui.keyUp("s")
-pyautogui.keyDown("s")
-pyautogui.keyUp("s")
-pyautogui.keyDown("s")
-pyautogui.keyUp("s")
-pyautogui.keyDown("s")
-pyautogui.keyUp("s")
-pyautogui.keyDown("s")
-pyautogui.keyUp("s")
+for i in range(0, 6):
+    pyautogui.keyDown("s")
+    pyautogui.keyUp("s")
 
 with mss.mss() as sct:
     fail_count = 0
-    position_reset = False
     i = 0
     while i < MAX_REPLAY_COUNT:
         # Grab the sections of the screen that contain the player1 and player2 info
@@ -155,6 +142,45 @@ with mss.mss() as sct:
         # templates
         p1_im = cv2.cvtColor(p1_im, cv2.COLOR_BGR2GRAY)
         p2_im = cv2.cvtColor(p2_im, cv2.COLOR_BGR2GRAY)
+
+        # Figure out if player1 or player2 won by first checking if the win
+        # template is contained in the player1 image and second checking if
+        # the lose template is contained in the player1 image
+        p1_win = False
+        result = cv2.matchTemplate(p1_im, win_template, cv2.TM_CCOEFF_NORMED)
+        win_min_val, win_max_val, win_min_loc, win_max_loc = cv2.minMaxLoc(result)
+        if win_max_val >= MATCH_THRESHOLD:
+            p1_win = True
+        else:
+            result = cv2.matchTemplate(p1_im, lose_template, cv2.TM_CCOEFF_NORMED)
+            lose_min_val, lose_max_val, lose_min_loc, lose_max_loc = cv2.minMaxLoc(result)
+
+            if lose_max_val >= MATCH_THRESHOLD:
+                p1_win = False
+            else:
+                fail_count = fail_count + 1
+
+                if fail_count > MAX_FAIL_COUNT:
+                    print("Failed to find the winner. Aborting")
+                    break
+
+                time.sleep(SLEEP_TIME_MATCH_FAIL)
+                continue
+
+        # Check if the version of this replay matches the version template
+        # Grab the section of the screen containing the version and convert to gray
+        version_im = numpy.asarray(sct.grab(VERSION_SCREEN_POSITION))
+        version_im = cv2.cvtColor(version_im, cv2.COLOR_BGR2GRAY)
+        result = cv2.matchTemplate(version_im, version_template, cv2.TM_CCOEFF_NORMED)
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+        if max_val < MATCH_THRESHOLD:
+            fail_count = fail_count + 1
+            if fail_count == MAX_FAIL_COUNT:
+                print("Version mismatch. max_val: " + str(max_val))
+                break
+
+            time.sleep(SLEEP_TIME_MATCH_FAIL)
+            continue
 
         # Figure out which character is player1 and which character is player2 by
         # matching character templates
@@ -188,23 +214,9 @@ with mss.mss() as sct:
         if not p1_found:
             fail_count = fail_count + 1
 
-            # We failed as many times as allowed. It's possible the selected replay position
-            # got reset to the top entry. If that's the case and we scroll up we'll be back
-            # at the bottom of the list. If we haven't already tried this then reset fail_count,
-            # scroll up, and try again. If we've already tried this and we are still failing then
-            # abort
             if (fail_count == MAX_FAIL_COUNT):
-                if position_reset:
-                    print("Couldn't find player1 and position has already been reset. Aborting")
-                    break
-                else:
-                    print("Couldn't find player1. Attempting to reset position")
-                    position_reset = True
-                    fail_count = 0
-                    pyautogui.keyDown("w")
-                    pyautogui.keyUp("w")
-                    time.sleep(SLEEP_TIME_POSITION_RESET)
-                    continue
+                print("Couldn't find player1 and position has already been reset. Aborting")
+                break
 
             time.sleep(SLEEP_TIME_MATCH_FAIL)
             continue
@@ -214,73 +226,8 @@ with mss.mss() as sct:
             fail_count = fail_count + 1
 
             if (fail_count == MAX_FAIL_COUNT):
-                if position_reset:
-                    print("Couldn't find player2 and position has already been reset. Aborting")
-                    break
-                else:
-                    print("Couldn't find player1. Attempting to reset position")
-                    position_reset = True
-                    fail_count = 0
-                    pyautogui.keyDown("w")
-                    pyautogui.keyUp("w")
-                    time.sleep(SLEEP_TIME_POSITION_RESET)
-                    continue
-
-            time.sleep(SLEEP_TIME_MATCH_FAIL)
-            continue
-
-        # Figure out if player1 or player2 won by first checking if the win
-        # template is contained in the player1 image and second checking if
-        # the lose template is contained in the player1 image
-        p1_win = False
-        result = cv2.matchTemplate(p1_im, win_template, cv2.TM_CCOEFF_NORMED)
-        win_min_val, win_max_val, win_min_loc, win_max_loc = cv2.minMaxLoc(result)
-        if win_max_val >= MATCH_THRESHOLD:
-            p1_win = True
-        else:
-            result = cv2.matchTemplate(p1_im, lose_template, cv2.TM_CCOEFF_NORMED)
-            lose_min_val, lose_max_val, lose_min_loc, lose_max_loc = cv2.minMaxLoc(result)
-            if lose_max_val >= MATCH_THRESHOLD:
-                p1_win = False
-            else:
-                fail_count = fail_count + 1
-                if fail_count > MAX_FAIL_COUNT:
-                    if position_reset:
-                        print("Failed to find the winner and the position has already been reset. Aborting. win_max_val: " + str(win_max_val) + " lose_max_val: " + str(lose_max_val))
-                        break
-                    else:
-                        print("Failed to find the winner. Attempting to reset position. win_max_val: " + str(win_max_val) + " lose_max_val: " + str(lose_max_val))
-                        position_reset = True
-                        fail_count = 0
-                        pyautogui.keyDown("w")
-                        pyautogui.keyUp("w")
-                        time.sleep(SLEEP_TIME_POSITION_RESET)
-                        continue
-
-                time.sleep(SLEEP_TIME_MATCH_FAIL)
-                continue
-
-        # Grab the section of the screen containing the version and convert to gray
-        version_im = numpy.asarray(sct.grab(VERSION_SCREEN_POSITION))
-        version_im = cv2.cvtColor(version_im, cv2.COLOR_BGR2GRAY)
-
-        # Check if the version of this replay matches the version template
-        result = cv2.matchTemplate(version_im, version_template, cv2.TM_CCOEFF_NORMED)
-        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
-        if max_val < MATCH_THRESHOLD:
-            fail_count = fail_count + 1
-            if fail_count == MAX_FAIL_COUNT:
-                print("Version mismatch. max_val: " + str(max_val))
-                if position_reset:
-                    break
-                else:
-                    position_reset = True
-                    fail_count = 0
-                    pyautogui.keyDown("w")
-                    pyautogui.keyUp("w")
-                    time.sleep(SLEEP_TIME_POSITION_RESET)
-                    continue
-                    
+                print("Couldn't find player2 and position has already been reset. Aborting")
+                break
 
             time.sleep(SLEEP_TIME_MATCH_FAIL)
             continue
@@ -307,5 +254,5 @@ with mss.mss() as sct:
             print("i: " + str(i))
 
     # We're finished; make the excel spreadsheet
-    print(i)
+    print("Creating spreadsheet with " + str(i) + " total matches")
     CreateExcel()
